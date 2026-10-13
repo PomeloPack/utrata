@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# utrata
-proste utrata
-=======
 # Útrata – instalace
 
 Data se ukládají jen lokálně v prohlížeči zařízení (localStorage). Aplikace nedělá žádné síťové požadavky s daty.
