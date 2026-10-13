@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Útrata">
+<meta name="theme-color" content="#0f766e">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>Útrata</title>
+<style>
+:root{--bg:#f4f6f6;--card:#fff;--fg:#14201f;--mut:#6b7a78;--line:#e3e8e7;--acc:#0f766e;--bad:#c2410c;--good:#15803d;--soft:#e6f2f0}
+@media (prefers-color-scheme:dark){:root{--bg:#0b1214;--card:#141d1f;--fg:#e8efee;--mut:#8fa09d;--line:#25312f;--acc:#2dd4bf;--bad:#fb923c;--good:#4ade80;--soft:#16302c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+main{max-width:720px;margin:0 auto;padding:12px 16px 40px;display:grid;gap:12px}
+h1{font-size:22px;margin:8px 0 0}
+h2{font-size:15px;margin:0 0 10px;color:var(--mut);font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.hero{text-align:center}
+.big{font-size:44px;font-weight:700;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+.big.neg{color:var(--bad)}
+.sub{color:var(--mut);font-size:14px}
+.bar{height:8px;background:var(--soft);border-radius:4px;overflow:hidden;margin-top:10px}
+.bar>div{height:100%;background:var(--acc);width:0}
+.bar>div.over{background:var(--bad)}
+form{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+input,select,button{font:inherit;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--fg);width:100%;min-width:0}
+button{background:var(--acc);color:#fff;border:0;font-weight:600;cursor:pointer}
+@media (prefers-color-scheme:dark){button{color:#04201c}}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+.full{grid-column:1/-1}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px}
+.stat b{display:block;font-size:18px;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--mut)}
+canvas{width:100%;display:block}
+.legend{font-size:12px;color:var(--mut);display:flex;gap:14px;margin-top:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.catrow{display:grid;grid-template-columns:90px 1fr 80px;gap:8px;align-items:center;font-size:14px;margin:4px 0}
+.catrow .t{height:10px;background:var(--soft);border-radius:5px;overflow:hidden}
+.catrow .t>div{height:100%;background:var(--acc)}
+.catrow .v{text-align:right;font-variant-numeric:tabular-nums}
+.item{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
+.item:first-child{border-top:0}
+.item .d{color:var(--mut);width:52px;flex:none}
+.item .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .a{font-variant-numeric:tabular-nums;font-weight:600}
+.item button{width:auto;padding:2px 10px;background:transparent;color:var(--mut);border:1px solid var(--line)}
+.dayhead{font-size:12px;color:var(--mut);margin-top:10px;display:flex;justify-content:space-between}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>*{flex:1}
+label{font-size:13px;color:var(--mut);display:grid;gap:4px}
+.note{font-size:12px;color:var(--mut);margin:8px 0 0}
+.empty{color:var(--mut);font-size:14px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Útrata</h1>
+
+  <section class="card hero">
+    <div class="sub">Dnes ještě můžeš utratit</div>
+    <div id="avail" class="big">–</div>
+    <div class="sub" id="availSub"></div>
+    <div class="bar"><div id="todayBar"></div></div>
+  </section>
+
+  <section class="card">
+    <form id="addForm">
+      <input id="amt" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="Částka (Kč)" required>
+      <select id="cat"></select>
+      <input id="note" class="full" placeholder="Poznámka (nepovinné)" maxlength="80">
+      <input id="date" type="date" required>
+      <button type="submit">Přidat</button>
+    </form>
+  </section>
+
+  <section class="stats">
+    <div class="stat"><span>Celkem ušetřeno</span><b id="sSaved">–</b></div>
+    <div class="stat"><span>Tento měsíc</span><b id="sMonth">–</b></div>
+    <div class="stat"><span>Průměr / den (30 d)</span><b id="sAvg">–</b></div>
+  </section>
+
+  <section class="card">
+    <h2>Posledních 30 dní</h2>
+    <canvas id="chDaily"></canvas>
+    <div class="legend"><span><i style="background:var(--acc)"></i>v limitu</span><span><i style="background:var(--bad)"></i>nad limit</span><span>– – denní limit</span></div>
+  </section>
+
+  <section class="card">
+    <h2>Úspora v čase (90 dní)</h2>
+    <canvas id="chSave"></canvas>
+  </section>
+
+  <section class="card">
+    <h2>Kategorie – tento měsíc</h2>
+    <div id="cats"></div>
+  </section>
+
+  <section class="card">
+    <h2>Výdaje</h2>
+    <div id="list"></div>
+    <button class="ghost full" id="more" style="margin-top:8px;display:none">Zobrazit další</button>
+  </section>
+
+  <section class="card">
+    <h2>Nastavení</h2>
+    <div class="row">
+      <label>Denní limit (Kč)<input id="limit" type="number" inputmode="decimal" min="0" step="1"></label>
+      <label>Počítat od<input id="start" type="date"></label>
+    </div>
+    <label style="margin-top:8px">Kategorie (oddělené čárkou)<input id="cats_in"></label>
+    <div class="row" style="margin-top:10px">
+      <button id="save">Uložit nastavení</button>
+    </div>
+    <p class="note">Změna limitu platí od dneška, minulé dny zůstávají s původním limitem.</p>
+    <div class="row" style="margin-top:12px">
+      <button class="ghost" id="exp">Export JSON</button>
+      <button class="ghost" id="impBtn">Import JSON</button>
+      <input type="file" id="imp" accept="application/json,.json" hidden>
+    </div>
+    <p class="note">Data jsou uložená jen v tomto zařízení. Pro přenos Mac ↔ iPhone použij export / import.</p>
+  </section>
+</main>
+
+<script>
+'use strict';
+const KEY = 'utrata-v1';
+const $ = id => document.getElementById(id);
+
+// ---------- datum (lokální čas, poledne kvůli DST) ----------
+const pad = n => String(n).padStart(2, '0');
+const key = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parse = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d, 12); };
+const addDays = (k, n) => { const d = parse(k); d.setDate(d.getDate() + n); return key(d); };
+const today = () => key(new Date());
+const short = k => { const d = parse(k); return `${d.getDate()}.${d.getMonth() + 1}.`; };
+
+const fmt = new Intl.NumberFormat('cs-CZ', { style: 'currency', currency: 'CZK', maximumFractionDigits: 0 });
+const money = v => fmt.format(Math.round(v));
+const r2 = v => Math.round(v * 100) / 100;
+
+// ---------- stav ----------
+function defaults() {
+  return {
+    settings: {
+      start: today(),
+      limits: [{ from: today(), v: 500 }],
+      cats: ['Jídlo', 'Doprava', 'Bydlení', 'Zábava', 'Nákupy', 'Ostatní']
+    },
+    expenses: []
+  };
+}
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && s.settings && Array.isArray(s.expenses)) return s;
+  } catch (e) {}
+  return defaults();
+}
+let S = load();
+function persist() {
+  try { localStorage.setItem(KEY, JSON.stringify(S)); }
+  catch (e) { alert('Uložení selhalo: ' + e.message); }
+}
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+// ---------- výpočty ----------
+function limitFor(k) {
+  let v = 0;
+  for (const l of S.settings.limits) if (l.from <= k) v = l.v; // limits seřazené dle from
+  if (v === 0 && S.settings.limits.length) v = S.settings.limits[0].v;
+  return v;
+}
+function spentByDay() {
+  const m = new Map();
+  for (const e of S.expenses) m.set(e.date, r2((m.get(e.date) || 0) + e.amt));
+  return m;
+}
+// Zůstatek na konci každého dne od startu do dneška (včetně).
+// carry(dnes) = Σ (limit − útrata) za dny start..včera
+function series() {
+  const by = spentByDay(), t = today(), out = [];
+  let bal = 0, k = S.settings.start;
+  if (k > t) return { out, carry: 0, by };
+  let carry = 0;
+  while (k <= t) {
+    if (k === t) carry = bal;
+    const lim = limitFor(k), sp = by.get(k) || 0;
+    bal = r2(bal + lim - sp);
+    out.push({ k, lim, sp, bal });
+    k = addDays(k, 1);
+  }
+  return { out, carry, by };
+}
+
+// ---------- render ----------
+function render() {
+  const t = today();
+  const { out, carry, by } = series();
+  const lim = limitFor(t), spT = by.get(t) || 0;
+  const avail = lim + carry - spT;
+
+  $('avail').textContent = money(avail);
+  $('avail').classList.toggle('neg', avail < 0);
+  $('availSub').textContent = `limit ${money(lim)} ${carry >= 0 ? '+' : '−'} převod ${money(Math.abs(carry))} − dnes ${money(spT)}`;
+  const budget = Math.max(lim + carry, 0.01);
+  const b = $('todayBar');
+  b.style.width = Math.min(100, Math.max(0, spT / budget * 100)) + '%';
+  b.classList.toggle('over', avail < 0);
+
+  // statistiky
+  $('sSaved').textContent = money(carry);
+  $('sSaved').style.color = carry < 0 ? 'var(--bad)' : 'var(--good)';
+  const ym = t.slice(0, 7);
+  let month = 0; const catSum = new Map();
+  for (const e of S.expenses) if (e.date.slice(0, 7) === ym && e.date <= t) {
+    month += e.amt; catSum.set(e.cat, (catSum.get(e.cat) || 0) + e.amt);
+  }
+  $('sMonth').textContent = money(month);
+  const last30 = Array.from({ length: 30 }, (_, i) => addDays(t, i - 29));
+  const s30 = last30.reduce((a, k) => a + (by.get(k) || 0), 0);
+  $('sAvg').textContent = money(s30 / 30);
+
+  // kategorie
+  const cats = [...catSum].sort((a, b) => b[1] - a[1]);
+  const mx = cats.length ? cats[0][1] : 1;
+  $('cats').innerHTML = cats.length ? cats.map(([c, v]) =>
+    `<div class="catrow"><span>${esc(c)}</span><div class="t"><div style="width:${v / mx * 100}%"></div></div><span class="v">${money(v)}</span></div>`
+  ).join('') : '<div class="empty">Tento měsíc zatím nic.</div>';
+
+  renderList();
+  drawDaily(last30.map(k => ({ k, sp: by.get(k) || 0, lim: limitFor(k) })));
+  drawSave(out.slice(-90));
+}
+
+let shown = 30;
+function renderList() {
+  const items = [...S.expenses].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id);
+  const slice = items.slice(0, shown);
+  let html = '', last = '';
+  const by = spentByDay();
+  for (const e of slice) {
+    if (e.date !== last) {
+      last = e.date;
+      html += `<div class="dayhead"><span>${short(e.date)} ${parse(e.date).toLocaleDateString('cs-CZ', { weekday: 'short' })}</span><span>${money(by.get(e.date))} / ${money(limitFor(e.date))}</span></div>`;
+    }
+    html += `<div class="item"><span class="d">${esc(e.cat)}</span><span class="n">${esc(e.note || '')}</span><span class="a">${money(e.amt)}</span><button data-del="${e.id}" aria-label="Smazat">×</button></div>`;
+  }
+  $('list').innerHTML = html || '<div class="empty">Zatím žádné výdaje.</div>';
+  $('more').style.display = items.length > shown ? '' : 'none';
+}
+
+// ---------- grafy (canvas, bez knihoven -> funguje offline) ----------
+function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function canvas(id, h) {
+  const c = $(id), dpr = window.devicePixelRatio || 1, w = c.clientWidth;
+  c.width = w * dpr; c.height = h * dpr; c.style.height = h + 'px';
+  const x = c.getContext('2d'); x.scale(dpr, dpr);
+  x.font = '11px -apple-system,sans-serif';
+  return { x, w, h };
+}
+function yAxis(x, w, top, bot, min, max, pl) {
+  x.fillStyle = css('--mut'); x.strokeStyle = css('--line'); x.lineWidth = 1;
+  x.textAlign = 'right'; x.textBaseline = 'middle';
+  for (let i = 0; i <= 3; i++) {
+    const v = min + (max - min) * i / 3, y = bot - (bot - top) * i / 3;
+    x.beginPath(); x.moveTo(pl, y); x.lineTo(w, y); x.stroke();
+    x.fillText(Math.round(v).toLocaleString('cs-CZ'), pl - 4, y);
+  }
+}
+function drawDaily(d) {
+  const { x, w, h } = canvas('chDaily', 180), pl = 40, top = 8, bot = h - 18;
+  const max = Math.max(1, ...d.map(p => Math.max(p.sp, p.lim))) * 1.1;
+  yAxis(x, w, top, bot, 0, max, pl);
+  const bw = (w - pl) / d.length, Y = v => bot - (bot - top) * v / max;
+  d.forEach((p, i) => {
+    x.fillStyle = p.sp > p.lim ? css('--bad') : css('--acc');
+    const y = Y(p.sp); x.fillRect(pl + i * bw + 1, y, Math.max(1, bw - 2), bot - y);
+  });
+  x.setLineDash([4, 3]); x.strokeStyle = css('--fg'); x.globalAlpha = .5; x.beginPath();
+  d.forEach((p, i) => { const y = Y(p.lim); i ? x.lineTo(pl + i * bw, y) : x.moveTo(pl, y); x.lineTo(pl + (i + 1) * bw, y); });
+  x.stroke(); x.setLineDash([]); x.globalAlpha = 1;
+  x.fillStyle = css('--mut'); x.textAlign = 'center'; x.textBaseline = 'top';
+  d.forEach((p, i) => { if ((d.length - 1 - i) % 7 === 0) x.fillText(short(p.k), Math.min(pl + (i + .5) * bw, w - 15), bot + 4); });
+}
+function drawSave(d) {
+  const { x, w, h } = canvas('chSave', 160), pl = 48, top = 8, bot = h - 18;
+  if (d.length < 2) { x.fillStyle = css('--mut'); x.fillText('Graf se ukáže od druhého dne.', pl, h / 2); return; }
+  let min = Math.min(0, ...d.map(p => p.bal)), max = Math.max(0, ...d.map(p => p.bal));
+  if (max === min) max = min + 1;
+  const pad = (max - min) * .1; min -= min < 0 ? pad : 0; max += pad;
+  yAxis(x, w, top, bot, min, max, pl);
+  const X = i => pl + (w - pl) * i / (d.length - 1), Y = v => bot - (bot - top) * (v - min) / (max - min);
+  x.strokeStyle = css('--mut'); x.beginPath(); x.moveTo(pl, Y(0)); x.lineTo(w, Y(0)); x.stroke();
+  const last = d[d.length - 1].bal, col = last < 0 ? css('--bad') : css('--good');
+  x.beginPath(); d.forEach((p, i) => i ? x.lineTo(X(i), Y(p.bal)) : x.moveTo(X(i), Y(p.bal)));
+  x.strokeStyle = col; x.lineWidth = 2; x.stroke();
+  x.lineTo(X(d.length - 1), Y(0)); x.lineTo(X(0), Y(0)); x.closePath();
+  x.globalAlpha = .15; x.fillStyle = col; x.fill(); x.globalAlpha = 1;
+  x.fillStyle = css('--mut'); x.textAlign = 'center'; x.textBaseline = 'top';
+  [0, Math.floor((d.length - 1) / 2), d.length - 1].forEach(i => x.fillText(short(d[i].k), Math.min(Math.max(X(i), pl + 15), w - 15), bot + 4));
+}
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ---------- UI ----------
+function fillForm() {
+  $('cat').innerHTML = S.settings.cats.map(c => `<option>${esc(c)}</option>`).join('');
+  $('date').value = today();
+  $('limit').value = limitFor(today());
+  $('start').value = S.settings.start;
+  $('cats_in').value = S.settings.cats.join(', ');
+}
+
+$('addForm').addEventListener('submit', ev => {
+  ev.preventDefault();
+  const amt = r2(parseFloat(String($('amt').value).replace(',', '.')));
+  if (!(amt > 0)) return;
+  S.expenses.push({ id: Date.now(), date: $('date').value || today(), amt, cat: $('cat').value, note: $('note').value.trim() });
+  persist();
+  $('amt').value = ''; $('note').value = ''; $('date').value = today();
+  render();
+});
+
+$('list').addEventListener('click', ev => {
+  const id = ev.target.dataset && ev.target.dataset.del;
+  if (!id || !confirm('Smazat výdaj?')) return;
+  S.expenses = S.expenses.filter(e => String(e.id) !== id);
+  persist(); render();
+});
+$('more').onclick = () => { shown += 30; renderList(); };
+
+$('save').onclick = () => {
+  const v = parseFloat($('limit').value), t = today();
+  if (!(v >= 0)) return alert('Neplatný limit.');
+  if (v !== limitFor(t)) {
+    S.settings.limits = S.settings.limits.filter(l => l.from !== t);
+    S.settings.limits.push({ from: t, v });
+    S.settings.limits.sort((a, b) => a.from.localeCompare(b.from));
+  }
+  if ($('start').value) S.settings.start = $('start').value;
+  const cats = $('cats_in').value.split(',').map(s => s.trim()).filter(Boolean);
+  if (cats.length) S.settings.cats = [...new Set(cats)];
+  persist(); fillForm(); render();
+};
+
+$('exp').onclick = () => {
+  const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `utrata-${today()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$('impBtn').onclick = () => $('imp').click();
+$('imp').onchange = async ev => {
+  const f = ev.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!d.settings || !Array.isArray(d.expenses) || !Array.isArray(d.settings.limits)) throw new Error('špatný formát');
+    if (!confirm(`Import přepíše aktuální data (${S.expenses.length} výdajů) daty ze souboru (${d.expenses.length} výdajů). Pokračovat?`)) return;
+    S = d; persist(); fillForm(); render();
+  } catch (e) { alert('Import selhal: ' + e.message); }
+  ev.target.value = '';
+};
+
+let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(render, 150); });
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { fillForm(); render(); } }); // přechod přes půlnoc
+
+fillForm(); render();
+
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
